@@ -1,2 +1,2 @@
 # Watson Pixel Tracking Code Injector (WC)
-`~Current Version:2.3.3~`
+`~Current Version:2.3.4~`
