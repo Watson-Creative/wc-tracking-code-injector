@@ -27,9 +27,9 @@ function github_plugin_updater_test_init() {
 			'slug' => plugin_basename( __FILE__ ),
 			'proper_folder_name' => 'wc-tracking-code-injector',
 			'api_url' => 'https://api.github.com/repos/Watson-Creative/wc-tracking-code-injector',
-			'raw_url' => 'https://raw.github.com/Watson-Creative/wc-tracking-code-injector/master',
+			'raw_url' => 'https://raw.github.com/Watson-Creative/wc-tracking-code-injector/main',
 			'github_url' => 'https://github.com/Watson-Creative/wc-tracking-code-injector',
-			'zip_url' => 'https://github.com/Watson-Creative/wc-tracking-code-injector/archive/master.zip',
+			'zip_url' => 'https://github.com/Watson-Creative/wc-tracking-code-injector/archive/main.zip',
 			'sslverify' => true,
 			'requires' => '6.0',
 			'tested' => '6.0',
@@ -95,7 +95,7 @@ class WatsonPixelTracking {
             update_option("sentry_dsn", '');
         }
         if (!get_option('hbs_pixel_code')) {
-            update_option('hbs_pixel_code', '');
+            update_option('hbs_pixel_code', '########');
         }
     }
 
