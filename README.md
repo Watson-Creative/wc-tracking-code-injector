@@ -1,2 +1,7 @@
-# Watson Pixel Tracking Code Injector (WC)
-`~Current Version:2.3.4~`
+# WC Tracking Code Injector
+`~Current Version:2.3.5~`
+
+Add tags for Sentry.IO, Google Analytics, Google Tag Manager, Hubspot and Facebook code in appropriate locations globally from WP Admin menu. Code is only printed in a live Pantheon environment to prevent skewing data with traffic on the development or testing environments.
+- Author: Spencer Thayer, Hunter Watson, Alex Tryon
+- Author URI: https://watsoncreative.com
+- License: GPL2
