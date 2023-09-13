@@ -12,6 +12,36 @@ License: GPL2
 
 // Prevent direct access to the file.
 defined('ABSPATH') or die('No script kiddies please!');
+
+
+add_action( 'init', 'github_plugin_updater_test_init' );
+function github_plugin_updater_test_init() {
+
+	include_once 'updater.php';
+
+	define( 'WP_GITHUB_FORCE_UPDATE', true );
+
+	if ( is_admin() ) { // note the use of is_admin() to double check that this is happening in the admin
+
+		$config = array(
+			'slug' => plugin_basename( __FILE__ ),
+			'proper_folder_name' => 'wc-tracking-code-injector',
+			'api_url' => 'https://api.github.com/repos/Watson-Creative/wc-tracking-code-injector',
+			'raw_url' => 'https://raw.github.com/Watson-Creative/wc-tracking-code-injector/master',
+			'github_url' => 'https://github.com/Watson-Creative/wc-tracking-code-injector',
+			'zip_url' => 'https://github.com/Watson-Creative/wc-tracking-code-injector/archive/master.zip',
+			'sslverify' => true,
+			'requires' => '6.0',
+			'tested' => '6.0',
+			'readme' => 'README.md',
+			'access_token' => '',
+		);
+
+		new WP_GitHub_Updater( $config );
+
+	}
+
+}
 class WatsonPixelTracking {
 
     // Constructor
