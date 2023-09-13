@@ -5,3 +5,5 @@ Add tags for Sentry.IO, Google Analytics, Google Tag Manager, Hubspot and Facebo
 - Author: Spencer Thayer, Hunter Watson, Alex Tryon
 - Author URI: https://watsoncreative.com
 - License: GPL2
+
+This is an auto updating plugin. Simply install the plugin by uploading [this zip file](https://github.com/Watson-Creative/wc-tracking-code-injector/archive/main.zip).
