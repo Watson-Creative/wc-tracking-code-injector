@@ -68,14 +68,29 @@ class WatsonPixelTracking {
         );
     }
 
+	function custom_inject_code_sanitization( $input ) {
+		// Allow only specific script tags
+		$allowed_html = array(
+			'script' => array(
+				'type' => array(),
+				'src' => array(),
+				'async' => array(),
+				// Add any other attributes that need to be allowed
+			),
+			// Include other tags that need to be allowed
+		);
+	
+		return wp_kses( $input, $allowed_html );
+	}
+
     public function register_settings() {
         register_setting('ga-inject-option-group', 'ga_inject_code', 'sanitize_text_field');
         register_setting('ga-inject-option-group', 'gtm_inject_code', 'sanitize_text_field');
         register_setting('ga-inject-option-group', 'fb_pixel_code', 'sanitize_text_field');
         register_setting('ga-inject-option-group', 'ga4_measurement_id', 'sanitize_text_field');
-        register_setting('ga-inject-option-group', 'custom_inject_code', 'wp_kses_post');
         register_setting('ga-inject-option-group', 'sentry_dsn', 'sanitize_text_field');
         register_setting('ga-inject-option-group', 'hbs_pixel_code', 'sanitize_text_field');
+        register_setting('ga-inject-option-group', 'custom_inject_code', 'custom_inject_code_sanitization');
     }
 
     public function create_default_values() {
@@ -154,6 +169,17 @@ class WatsonPixelTracking {
 					  <!-- End Facebook Pixel Code -->';
 			}
 	
+			// HubSpot Embed Code
+			$HBS_CODE = get_option("hbs_pixel_code");
+			if (is_string($HBS_CODE)) {
+				$HBS_CODE = trim($HBS_CODE);
+			}
+			if ($HBS_CODE && strlen($HBS_CODE) > 0) {
+				echo "\n<!-- Start of HubSpot Embed Code -->\n";
+				echo '<script type="text/javascript" id="hs-script-loader" async defer src="//js.hs-scripts.com/'.$HBS_CODE.'.js"></script>';
+				echo "\n<!-- End of HubSpot Embed Code -->\n";
+			}
+			
 			// HubSpot Embed Code
 			$HBS_CODE = get_option("hbs_pixel_code");
 			if (is_string($HBS_CODE)) {
