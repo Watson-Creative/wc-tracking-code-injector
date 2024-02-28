@@ -12,7 +12,7 @@ License: GPL2
 
 // Prevent direct access to the file.
 defined('ABSPATH') or die('No script kiddies please!');
-
+// define('PANTHEON_ENVIRONMENT', null);
 
 add_action( 'init', 'github_plugin_updater_test_init' );
 function github_plugin_updater_test_init() {
@@ -52,8 +52,8 @@ class WatsonPixelTracking {
         }
         add_action('wp_head', [$this, 'print_code_head']);
         if (defined('PANTHEON_ENVIRONMENT') && PANTHEON_ENVIRONMENT === 'live') {
-            add_filter('body_class', [$this, 'add_body_class']);
-        }
+			add_filter('body_class', [$this, 'add_body_class']);
+		}
         add_action('admin_init', [$this, 'create_default_values']);
     }
 
