@@ -91,6 +91,7 @@ class WatsonPixelTracking {
         register_setting('ga-inject-option-group', 'sentry_dsn', 'sanitize_text_field');
         register_setting('ga-inject-option-group', 'hbs_pixel_code', 'sanitize_text_field');
         register_setting('ga-inject-option-group', 'custom_inject_code', 'custom_inject_code_sanitization');
+        register_setting('ga-inject-option-group', 'google_site_verification', 'sanitize_text_field');
     }
 
     public function create_default_values() {
@@ -112,10 +113,21 @@ class WatsonPixelTracking {
         if (!get_option('hbs_pixel_code')) {
             update_option('hbs_pixel_code', '########');
         }
+        if (!get_option('google_site_verification')) {
+            update_option('google_site_verification', '');
+        }
     }
 
 	public function print_code_head() {
 		if (defined('PANTHEON_ENVIRONMENT') && PANTHEON_ENVIRONMENT === 'live') {
+			
+			// Google Site Verification
+			$SITE_VERIFICATION = get_option('google_site_verification');
+			if (is_string($SITE_VERIFICATION) && strlen(trim($SITE_VERIFICATION)) > 0) {
+				echo "\n<!-- Google Site Verification -->\n";
+				echo '<meta name="google-site-verification" content="' . esc_attr($SITE_VERIFICATION) . '" />';
+				echo "\n<!-- End Google Site Verification -->\n";
+			}
 			
 			// Google Analytics Header Code
 			$GA_CODE = get_option("ga_inject_code");
@@ -247,6 +259,10 @@ class WatsonPixelTracking {
 				do_settings_sections('ga-inject-option-group');
 				?>
 				<table class="form-table ga-inject-code-options">
+					<tr valign="top">
+						<th scope="row">Google Site Verification</th>
+						<td><input type="text" name="google_site_verification" value="<?php echo esc_attr(get_option('google_site_verification')); ?>" /></td>
+					</tr>
 					<tr valign="top">
 						<th scope="row">Google Analytics Tracking Code (UA-XXXXX-X)</th>
 						<td><input type="text" name="ga_inject_code" value="<?php echo esc_attr(get_option('ga_inject_code')); ?>" /></td>
