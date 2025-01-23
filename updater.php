@@ -253,7 +253,7 @@ class WP_GitHub_Updater {
 	 * Get GitHub Data from the specified repository
 	 *
 	 * @since 1.0
-	 * @return array|false $github_data the data as array or false on error
+	 * @return object|false $github_data the data as object or false on error
 	 */
 	public function get_github_data() {
 		if ( isset( $this->github_data ) && ! empty( $this->github_data ) ) {
@@ -269,7 +269,7 @@ class WP_GitHub_Updater {
 					return false;
 				}
 
-				$github_data = json_decode( $response['body'], true ); // true to get array instead of object
+				$github_data = json_decode( $response['body'] ); // Return as object
 
 				if (json_last_error() !== JSON_ERROR_NONE) {
 					$this->log_error('Failed to decode GitHub response: ' . json_last_error_msg());
@@ -296,7 +296,7 @@ class WP_GitHub_Updater {
 	 */
 	public function get_date() {
 		$data = $this->get_github_data();
-		return (!empty($data['updated_at'])) ? date('Y-m-d', strtotime($data['updated_at'])) : false;
+		return (!empty($data->updated_at)) ? date('Y-m-d', strtotime($data->updated_at)) : false;
 	}
 
 
@@ -308,7 +308,7 @@ class WP_GitHub_Updater {
 	 */
 	public function get_description() {
 		$data = $this->get_github_data();
-		return (!empty($data['description'])) ? $data['description'] : false;
+		return (!empty($data->description)) ? $data->description : false;
 	}
 
 
