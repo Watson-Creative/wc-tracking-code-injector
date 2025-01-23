@@ -25,10 +25,9 @@ class WP_GitHub_Updater {
 	var $config;
 
 	/**
-	 * @var $missing_config any config that is missing from the initialization of this instance
-	 * @access public
+	 * @var array|null List of configuration parameters that are missing
 	 */
-	var $missing_config;
+	private $missing_config;
 
 	/**
 	 * @var $github_data temporiraly store the data fetched from GitHub, allows us to only load the data once per class instance
