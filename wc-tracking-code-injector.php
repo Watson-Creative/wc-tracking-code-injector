@@ -4,7 +4,7 @@ Plugin Name: WC Tracking Code Injector
 Plugin URI: https://github.com/Watson-Creative/wc-tracking-code-injector
 GitHub Plugin URI: https://github.com/Watson-Creative/wc-tracking-code-injector
 description: Add tags for Sentry.IO, Google Analytics, Google Tag Manager, Hubspot and Facebook code in appropriate locations globally from WP Admin menu. Code is only printed in a live Pantheon environment to prevent skewing data with traffic on the development or testing environments.
-Version: 2.3.6
+Version: 2.3.8
 Author: Spencer Thayer, Hunter Watson, Alex Tryon
 Author URI: https://watsoncreative.com
 License: GPL2
@@ -292,7 +292,7 @@ class WatsonPixelTracking {
 						<td><input type="text" name="sentry_dsn" value="<?php echo esc_attr(get_option('sentry_dsn')); ?>" /></td>
 					</tr>
 					<tr valign="top">
-						<th scope="row">Custom Tracking HTML Scripts (Head)</th>
+						<th scope="row">Schema.org Object Notation</th>
 						<td><textarea name="custom_inject_code" rows="15" cols="80"><?php echo esc_attr(get_option('custom_inject_code')); ?></textarea></td>
 					</tr>
 				</table>
