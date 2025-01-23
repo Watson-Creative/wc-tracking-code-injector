@@ -245,26 +245,6 @@ class WP_GitHub_Updater {
 
 
 	/**
-	 * Interact with GitHub
-	 *
-	 * @param string $query
-	 *
-	 * @since 1.6
-	 * @return mixed
-	 */
-	public function remote_get( $query ) {
-		if ( ! empty( $this->config['access_token'] ) )
-			$query = add_query_arg( array( 'access_token' => $this->config['access_token'] ), $query );
-
-		$raw_response = wp_remote_get( $query, array(
-			'sslverify' => $this->config['sslverify']
-		) );
-
-		return $raw_response;
-	}
-
-
-	/**
 	 * Get GitHub Data from the specified repository
 	 *
 	 * @since 1.0
