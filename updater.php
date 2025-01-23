@@ -1,3 +1,4 @@
+<?php
 /**
  * @package WC_Tracking_Code_Injector
  * @internal This file is only used as part of the WC Tracking Code Injector plugin.
