@@ -4,7 +4,7 @@ Plugin Name: WC Tracking Code Injector
 Plugin URI: https://github.com/Watson-Creative/wc-tracking-code-injector
 GitHub Plugin URI: https://github.com/Watson-Creative/wc-tracking-code-injector
 description: Add tags for Sentry.IO, Google Analytics, Google Tag Manager, Hubspot and Facebook code in appropriate locations globally from WP Admin menu. Code is only printed in a live Pantheon environment to prevent skewing data with traffic on the development or testing environments.
-Version: 2.3.5
+Version: 2.3.6
 Author: Spencer Thayer, Hunter Watson, Alex Tryon
 Author URI: https://watsoncreative.com
 License: GPL2
@@ -19,6 +19,7 @@ function github_plugin_updater_test_init() {
 
 	include_once 'updater.php';
 
+	// For development only - comment this line in production
 	define( 'WP_GITHUB_FORCE_UPDATE', true );
 
 	if ( is_admin() ) { // note the use of is_admin() to double check that this is happening in the admin
@@ -27,14 +28,14 @@ function github_plugin_updater_test_init() {
 			'slug' => plugin_basename( __FILE__ ),
 			'proper_folder_name' => 'wc-tracking-code-injector',
 			'api_url' => 'https://api.github.com/repos/Watson-Creative/wc-tracking-code-injector',
-			'raw_url' => 'https://raw.github.com/Watson-Creative/wc-tracking-code-injector/main',
+			'raw_url' => 'https://raw.githubusercontent.com/Watson-Creative/wc-tracking-code-injector/main',
 			'github_url' => 'https://github.com/Watson-Creative/wc-tracking-code-injector',
-			'zip_url' => 'https://github.com/Watson-Creative/wc-tracking-code-injector/archive/main.zip',
+			'zip_url' => 'https://github.com/Watson-Creative/wc-tracking-code-injector/archive/refs/heads/main.zip',
 			'sslverify' => true,
 			'requires' => '6.0',
-			'tested' => '6.0',
+			'tested' => '6.5',  // Updated to latest WordPress version
 			'readme' => 'README.md',
-			'access_token' => '',
+			'access_token' => '', // Only needed for private repos
 		);
 
 		new WP_GitHub_Updater( $config );
