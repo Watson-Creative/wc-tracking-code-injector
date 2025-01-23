@@ -7,9 +7,15 @@
 // Prevent direct access
 if (!defined('ABSPATH')) exit;
 
+// Define required constants if not already defined
+if (!defined('WP_GITHUB_FORCE_UPDATE')) {
+    define('WP_GITHUB_FORCE_UPDATE', false);
+}
+
 // Prevent loading this file directly and/or if the class is already defined
-if ( ! defined( 'ABSPATH' ) || class_exists( 'WPGitHubUpdater' ) || class_exists( 'WP_GitHub_Updater' ) )
-	return;
+if (class_exists('WPGitHubUpdater') || class_exists('WP_GitHub_Updater')) {
+    return;
+}
 
 class WP_GitHub_Updater {
 
@@ -247,7 +253,7 @@ class WP_GitHub_Updater {
 	 * Get GitHub Data from the specified repository
 	 *
 	 * @since 1.0
-	 * @return array $github_data the data
+	 * @return array|false $github_data the data as array or false on error
 	 */
 	public function get_github_data() {
 		if ( isset( $this->github_data ) && ! empty( $this->github_data ) ) {
@@ -256,12 +262,19 @@ class WP_GitHub_Updater {
 			$github_data = get_site_transient( md5($this->config['slug']).'_github_data' );
 
 			if ( $this->overrule_transients() || ( ! isset( $github_data ) || ! $github_data || '' == $github_data ) ) {
-				$github_data = $this->remote_get( $this->config['api_url'] );
+				$response = $this->remote_get( $this->config['api_url'] );
 
-				if ( is_wp_error( $github_data ) )
+				if ( is_wp_error( $response ) ) {
+					$this->log_error('Failed to get GitHub data: ' . $response->get_error_message());
 					return false;
+				}
 
-				$github_data = json_decode( $github_data['body'] );
+				$github_data = json_decode( $response['body'], true ); // true to get array instead of object
+
+				if (json_last_error() !== JSON_ERROR_NONE) {
+					$this->log_error('Failed to decode GitHub response: ' . json_last_error_msg());
+					return false;
+				}
 
 				// refresh every 6 hours
 				set_site_transient( md5($this->config['slug']).'_github_data', $github_data, 60*60*6 );
@@ -279,11 +292,11 @@ class WP_GitHub_Updater {
 	 * Get update date
 	 *
 	 * @since 1.0
-	 * @return string $date the date
+	 * @return string|false $date the date or false if not found
 	 */
 	public function get_date() {
-		$_date = $this->get_github_data();
-		return ( !empty( $_date->updated_at ) ) ? date( 'Y-m-d', strtotime( $_date->updated_at ) ) : false;
+		$data = $this->get_github_data();
+		return (!empty($data['updated_at'])) ? date('Y-m-d', strtotime($data['updated_at'])) : false;
 	}
 
 
@@ -291,11 +304,11 @@ class WP_GitHub_Updater {
 	 * Get plugin description
 	 *
 	 * @since 1.0
-	 * @return string $description the description
+	 * @return string|false $description the description or false if not found
 	 */
 	public function get_description() {
-		$_description = $this->get_github_data();
-		return ( !empty( $_description->description ) ) ? $_description->description : false;
+		$data = $this->get_github_data();
+		return (!empty($data['description'])) ? $data['description'] : false;
 	}
 
 
@@ -352,13 +365,16 @@ class WP_GitHub_Updater {
 	 * @param bool    $false  always false
 	 * @param string  $action the API function being performed
 	 * @param object  $args   plugin arguments
-	 * @return object $response the plugin info
+	 * @return object|false $response the plugin info or false if not applicable
 	 */
-	public function get_plugin_info( $false, $action, $response ) {
+	public function get_plugin_info( $false, $action, $args ) {
+		// Create response object
+		$response = new stdClass();
 
 		// Check if this call API is for the right plugin
-		if ( !isset( $response->slug ) || $response->slug != $this->config['slug'] )
+		if ( !isset( $args->slug ) || $args->slug != $this->config['slug'] ) {
 			return false;
+		}
 
 		$response->slug = $this->config['slug'];
 		$response->plugin_name  = $this->config['plugin_name'];

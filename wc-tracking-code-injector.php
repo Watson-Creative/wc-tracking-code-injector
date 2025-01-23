@@ -12,7 +12,16 @@ License: GPL2
 
 // Prevent direct access to the file.
 defined('ABSPATH') or die('No script kiddies please!');
-// define('PANTHEON_ENVIRONMENT', null);
+
+// Define Pantheon environment if not already defined
+if (!defined('PANTHEON_ENVIRONMENT')) {
+    define('PANTHEON_ENVIRONMENT', getenv('PANTHEON_ENVIRONMENT') ?: null);
+}
+
+// Define plugin directory constants if not already defined
+if (!defined('WP_PLUGIN_DIR')) {
+    define('WP_PLUGIN_DIR', dirname(dirname(__FILE__)));
+}
 
 require_once __DIR__ . '/updater.php';
 
