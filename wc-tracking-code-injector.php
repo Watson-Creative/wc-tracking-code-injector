@@ -4,7 +4,7 @@ Plugin Name: WC Tracking Code Injector
 Plugin URI: https://github.com/Watson-Creative/wc-tracking-code-injector
 GitHub Plugin URI: https://github.com/Watson-Creative/wc-tracking-code-injector
 description: Add tags for Sentry.IO, Google Analytics, Google Tag Manager, Hubspot and Facebook code in appropriate locations globally from WP Admin menu. Code is only printed in a live Pantheon environment to prevent skewing data with traffic on the development or testing environments.
-Version: 2.3.8
+Version: 2.3.9
 Author: Spencer Thayer, Hunter Watson, Alex Tryon
 Author URI: https://watsoncreative.com
 License: GPL2
@@ -96,6 +96,7 @@ class WatsonPixelTracking {
         register_setting('ga-inject-option-group', 'hbs_pixel_code', 'sanitize_text_field');
         register_setting('ga-inject-option-group', 'custom_inject_code', 'custom_inject_code_sanitization');
         register_setting('ga-inject-option-group', 'google_site_verification', 'sanitize_text_field');
+        register_setting('ga-inject-option-group', 'hotjar_hjid', 'sanitize_text_field');
     }
 
     public function create_default_values() {
@@ -119,6 +120,9 @@ class WatsonPixelTracking {
         }
         if (!get_option('google_site_verification')) {
             update_option('google_site_verification', '');
+        }
+        if (!get_option('hotjar_hjid')) {
+            update_option('hotjar_hjid', '');
         }
     }
 
@@ -195,16 +199,22 @@ class WatsonPixelTracking {
 				echo '<script type="text/javascript" id="hs-script-loader" async defer src="//js.hs-scripts.com/'.$HBS_CODE.'.js"></script>';
 				echo "\n<!-- End of HubSpot Embed Code -->\n";
 			}
-			
-			// HubSpot Embed Code
-			$HBS_CODE = get_option("hbs_pixel_code");
-			if (is_string($HBS_CODE)) {
-				$HBS_CODE = trim($HBS_CODE);
-			}
-			if ($HBS_CODE && strlen($HBS_CODE) > 0) {
-				echo "\n<!-- Start of HubSpot Embed Code -->\n";
-				echo '<script type="text/javascript" id="hs-script-loader" async defer src="//js.hs-scripts.com/'.$HBS_CODE.'.js"></script>';
-				echo "\n<!-- End of HubSpot Embed Code -->\n";
+	
+			// HotJar Tracking Code
+			$HOTJAR_HJID = get_option('hotjar_hjid');
+			if (!empty($HOTJAR_HJID)) {
+				echo "\n<!-- Hotjar Tracking Code -->\n";
+				echo '<script>
+					(function(h,o,t,j,a,r){
+						h.hj=h.hj||function(){(h.hj.q=h.hj.q||[]).push(arguments)};
+						h._hjSettings={hjid:' . esc_js($HOTJAR_HJID) . ',hjsv:6};
+						a=o.getElementsByTagName("head")[0];
+						r=o.createElement("script");r.async=1;
+						r.src=t+h._hjSettings.hjid+j+h._hjSettings.hjsv;
+						a.appendChild(r);
+					})(window,document,"https://static.hotjar.com/c/hotjar-",".js?sv=");
+				</script>';
+				echo "\n<!-- End Hotjar Tracking Code -->\n";
 			}
 	
 			// Custom Code
@@ -286,6 +296,10 @@ class WatsonPixelTracking {
 					<tr valign="top">
 						<th scope="row">Hubspot Tracking Code (########)</th>
 						<td><input type="text" name="hbs_pixel_code" value="<?php echo esc_attr(get_option('hbs_pixel_code')); ?>" /></td>
+					</tr>
+					<tr valign="top">
+						<th scope="row">HotJar Tracking ID (e.g., 5270198)</th>
+						<td><input type="text" name="hotjar_hjid" value="<?php echo esc_attr(get_option('hotjar_hjid')); ?>" /></td>
 					</tr>
 					<tr valign="top">
 						<th scope="row"><small><i>ALL ENVIRONMENTS</i></small><br/>Sentry.IO DSN</th>
