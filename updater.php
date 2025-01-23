@@ -1,4 +1,10 @@
-<?php
+/**
+ * @package WC_Tracking_Code_Injector
+ * @internal This file is only used as part of the WC Tracking Code Injector plugin.
+ */
+
+// Prevent direct access
+if (!defined('ABSPATH')) exit;
 
 // Prevent loading this file directly and/or if the class is already defined
 if ( ! defined( 'ABSPATH' ) || class_exists( 'WPGitHubUpdater' ) || class_exists( 'WP_GitHub_Updater' ) )
@@ -29,6 +35,10 @@ class WP_GitHub_Updater {
 	 */
 	private $github_data;
 
+	/**
+	 * @var string $main_plugin_file Full path to the main plugin file
+	 */
+	protected $main_plugin_file;
 
 	/**
 	 * Class Constructor
@@ -39,10 +49,13 @@ class WP_GitHub_Updater {
 	 * @return void
 	 */
 	public function __construct( $config = array() ) {
+		// Store main plugin file reference
+		$this->main_plugin_file = isset($config['main_plugin_file']) ? $config['main_plugin_file'] : __FILE__;
+		unset($config['main_plugin_file']);
 
 		$defaults = array(
-			'slug' => plugin_basename( __FILE__ ),
-			'proper_folder_name' => dirname( plugin_basename( __FILE__ ) ),
+			'slug' => plugin_basename( $this->main_plugin_file ),
+			'proper_folder_name' => dirname( plugin_basename( $this->main_plugin_file ) ),
 			'sslverify' => true,
 			'access_token' => '',
 		);
@@ -314,7 +327,7 @@ class WP_GitHub_Updater {
 	 */
 	public function get_plugin_data() {
 		include_once ABSPATH.'/wp-admin/includes/plugin.php';
-		$data = get_plugin_data( WP_PLUGIN_DIR.'/'.$this->config['slug'] );
+		$data = get_plugin_data( $this->main_plugin_file );
 		return $data;
 	}
 
@@ -409,5 +422,40 @@ class WP_GitHub_Updater {
 		echo is_wp_error( $activate ) ? $fail : $success;
 		return $result;
 
+	}
+
+	/**
+	 * Log error message
+	 *
+	 * @param string $message Error message to log
+	 * @return void
+	 */
+	private function log_error($message) {
+		error_log('GitHub Updater (' . $this->config['slug'] . '): ' . $message);
+		update_option('github_updater_error_' . $this->config['slug'], $message);
+	}
+
+	/**
+	 * Enhanced remote get with error logging
+	 *
+	 * @param string $query URL to fetch
+	 * @return mixed Response or false on error
+	 */
+	public function remote_get($query) {
+		if (!empty($this->config['access_token'])) {
+			$query = add_query_arg(array('access_token' => $this->config['access_token']), $query);
+		}
+
+		$response = wp_remote_get($query, array(
+			'sslverify' => $this->config['sslverify'],
+			'timeout' => 15
+		));
+
+		if (is_wp_error($response)) {
+			$this->log_error('API request failed: ' . $response->get_error_message());
+			return false;
+		}
+
+		return $response;
 	}
 }

@@ -14,39 +14,21 @@ License: GPL2
 defined('ABSPATH') or die('No script kiddies please!');
 // define('PANTHEON_ENVIRONMENT', null);
 
-add_action( 'init', 'github_plugin_updater_test_init' );
-function github_plugin_updater_test_init() {
+require_once __DIR__ . '/updater.php';
 
-	include_once 'updater.php';
+// Force refresh plugin cache on activation
+register_activation_hook(__FILE__, function() {
+    delete_site_transient('update_plugins');
+    wp_clean_plugins_cache();
+});
 
-	// For development only - comment this line in production
-	define( 'WP_GITHUB_FORCE_UPDATE', true );
-
-	if ( is_admin() ) { // note the use of is_admin() to double check that this is happening in the admin
-
-		$config = array(
-			'slug' => plugin_basename( __FILE__ ),
-			'proper_folder_name' => 'wc-tracking-code-injector',
-			'api_url' => 'https://api.github.com/repos/Watson-Creative/wc-tracking-code-injector',
-			'raw_url' => 'https://raw.githubusercontent.com/Watson-Creative/wc-tracking-code-injector/main',
-			'github_url' => 'https://github.com/Watson-Creative/wc-tracking-code-injector',
-			'zip_url' => 'https://github.com/Watson-Creative/wc-tracking-code-injector/archive/refs/heads/main.zip',
-			'sslverify' => true,
-			'requires' => '6.0',
-			'tested' => '6.5',  // Updated to latest WordPress version
-			'readme' => 'README.md',
-			'access_token' => '', // Only needed for private repos
-		);
-
-		new WP_GitHub_Updater( $config );
-
-	}
-
-}
 class WatsonPixelTracking {
+    private $config;
 
     // Constructor
     public function __construct() {
+        add_action('admin_init', [$this, 'cleanup_legacy_updater']);
+        add_action('init', [$this, 'init_github_updater']);
         if (is_admin()) {
             add_action('admin_menu', [$this, 'create_menu']);
             add_action('admin_init', [$this, 'register_settings']);
@@ -56,9 +38,91 @@ class WatsonPixelTracking {
         }
         add_action('wp_head', [$this, 'print_code_head']);
         if (defined('PANTHEON_ENVIRONMENT') && PANTHEON_ENVIRONMENT === 'live') {
-			add_filter('body_class', [$this, 'add_body_class']);
-		}
+            add_filter('body_class', [$this, 'add_body_class']);
+        }
         add_action('admin_init', [$this, 'create_default_values']);
+
+        // Store config for update checks
+        $this->config = array(
+            'slug' => plugin_basename(__FILE__),
+            'proper_folder_name' => dirname(plugin_basename(__FILE__))
+        );
+
+        // Add debug shortcode
+        add_shortcode('github_updater_debug', [$this, 'debug_shortcode']);
+    }
+
+    public function cleanup_legacy_updater() {
+        // Remove legacy updater plugin if it's still installed
+        if (file_exists(WP_PLUGIN_DIR . '/wp-github-plugin-updater-test/wp-github-plugin-updater-test.php')) {
+            deactivate_plugins('wp-github-plugin-updater-test/wp-github-plugin-updater-test.php');
+            delete_plugins(array('wp-github-plugin-updater-test/wp-github-plugin-updater-test.php'));
+        }
+    }
+
+    public function init_github_updater() {
+        if (!is_admin()) return;
+
+        $config = array(
+            'main_plugin_file' => __FILE__,
+            'slug' => plugin_basename(__FILE__),
+            'proper_folder_name' => dirname(plugin_basename(__FILE__)),
+            'api_url' => 'https://api.github.com/repos/Watson-Creative/wc-tracking-code-injector',
+            'raw_url' => 'https://raw.githubusercontent.com/Watson-Creative/wc-tracking-code-injector/main',
+            'github_url' => 'https://github.com/Watson-Creative/wc-tracking-code-injector',
+            'zip_url' => 'https://github.com/Watson-Creative/wc-tracking-code-injector/archive/refs/heads/main.zip',
+            'sslverify' => true,
+            'requires' => '6.0',
+            'tested' => '6.5',
+            'readme' => 'README.md',
+            'access_token' => '',
+        );
+
+        if (class_exists('WP_GitHub_Updater')) {
+            new WP_GitHub_Updater($config);
+        }
+    }
+
+    // Force transient refresh method
+    public function force_transient_refresh() {
+        delete_site_transient('update_plugins');
+        delete_site_transient(md5($this->config['slug']) . '_github_data');
+        delete_site_transient(md5($this->config['slug']) . '_new_version');
+    }
+
+    // Handle forced update check
+    public function handle_force_update_check() {
+        if (!isset($_GET['force_update_check']) || 
+            !wp_verify_nonce($_GET['_wpnonce'], 'force_update_check') ||
+            !current_user_can('update_plugins')) {
+            return;
+        }
+
+        // Clear update transients
+        delete_site_transient('update_plugins');
+        delete_site_transient(md5(plugin_basename(__FILE__)) . '_github_data');
+        delete_site_transient(md5(plugin_basename(__FILE__)) . '_new_version');
+
+        add_action('admin_notices', function() {
+            echo '<div class="notice notice-success is-dismissible">
+                <p>Successfully checked for updates. Refresh the page to see results.</p>
+            </div>';
+        });
+
+        wp_redirect(admin_url('plugins.php'));
+        exit;
+    }
+
+    public function debug_shortcode() {
+        if (!current_user_can('update_plugins')) return '';
+        
+        $output = '<h3>GitHub Updater Debug Info</h3>';
+        $output .= '<pre>';
+        $output .= 'Plugin: ' . $this->config['slug'] . "\n";
+        $output .= 'Last Error: ' . print_r(get_option('github_updater_error_' . $this->config['slug']), true) . "\n";
+        $output .= 'Update Data: ' . print_r(get_site_transient(md5($this->config['slug']) . '_github_data'), true);
+        $output .= '</pre>';
+        return $output;
     }
 
     public function create_menu() {
@@ -325,29 +389,6 @@ class WatsonPixelTracking {
         $links['check_updates'] = '<a href="' . esc_url($url) . '" style="color:#3d9970;">Check for Updates</a>';
         
         return $links;
-    }
-
-    // Handle forced update check
-    public function handle_force_update_check() {
-        if (!isset($_GET['force_update_check']) || 
-            !wp_verify_nonce($_GET['_wpnonce'], 'force_update_check')) {
-            return;
-        }
-
-        // Clear existing update data
-        delete_site_transient(md5(plugin_basename(__FILE__)) . '_new_version');
-        delete_site_transient(md5(plugin_basename(__FILE__)) . '_github_data');
-
-        // Add success notice
-        add_action('admin_notices', function() {
-            echo '<div class="notice notice-success is-dismissible">
-                <p>Successfully checked for updates. Refresh the page to see results.</p>
-            </div>';
-        });
-
-        // Redirect back to plugins page
-        wp_redirect(admin_url('plugins.php'));
-        exit;
     }
 }
 
