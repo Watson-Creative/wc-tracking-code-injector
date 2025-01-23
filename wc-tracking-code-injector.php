@@ -50,6 +50,9 @@ class WatsonPixelTracking {
         if (is_admin()) {
             add_action('admin_menu', [$this, 'create_menu']);
             add_action('admin_init', [$this, 'register_settings']);
+            // Add update check link
+            add_filter('plugin_action_links_' . plugin_basename(__FILE__), [$this, 'add_update_check_link']);
+            add_action('admin_init', [$this, 'handle_force_update_check']);
         }
         add_action('wp_head', [$this, 'print_code_head']);
         if (defined('PANTHEON_ENVIRONMENT') && PANTHEON_ENVIRONMENT === 'live') {
@@ -299,6 +302,39 @@ class WatsonPixelTracking {
 		<?php
 	}
 	
+    // Add "Check Updates" link next to deactivate button
+    public function add_update_check_link($links) {
+        if (!current_user_can('update_plugins')) return $links;
+        
+        $nonce = wp_create_nonce('force_update_check');
+        $url = admin_url('plugins.php?force_update_check=1&_wpnonce=' . $nonce);
+        $links['check_updates'] = '<a href="' . esc_url($url) . '" style="color:#3d9970;">Check for Updates</a>';
+        
+        return $links;
+    }
+
+    // Handle forced update check
+    public function handle_force_update_check() {
+        if (!isset($_GET['force_update_check']) || 
+            !wp_verify_nonce($_GET['_wpnonce'], 'force_update_check')) {
+            return;
+        }
+
+        // Clear existing update data
+        delete_site_transient(md5(plugin_basename(__FILE__)) . '_new_version');
+        delete_site_transient(md5(plugin_basename(__FILE__)) . '_github_data');
+
+        // Add success notice
+        add_action('admin_notices', function() {
+            echo '<div class="notice notice-success is-dismissible">
+                <p>Successfully checked for updates. Refresh the page to see results.</p>
+            </div>';
+        });
+
+        // Redirect back to plugins page
+        wp_redirect(admin_url('plugins.php'));
+        exit;
+    }
 }
 
 // Initialize the plugin
