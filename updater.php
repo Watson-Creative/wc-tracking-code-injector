@@ -198,51 +198,48 @@ class WP_GitHub_Updater {
 
 
 	/**
+	 * Log error message
+	 * 
+	 * @param string $message Error message to log
+	 * @return void
+	 */
+	private function log_error($message) {
+		if (defined('WP_DEBUG') && WP_DEBUG) {
+			error_log('[WC Tracking Code Injector] ' . $message);
+		}
+	}
+
+	/**
 	 * Get New Version from GitHub
 	 *
 	 * @since 1.0
-	 * @return int $version the version number
+	 * @return string|bool $version the version number or false on failure
 	 */
 	public function get_new_version() {
-		$version = get_site_transient( md5($this->config['slug']).'_new_version' );
+		$version = get_site_transient(md5($this->config['slug']).'_new_version');
 
-		if ( $this->overrule_transients() || ( !isset( $version ) || !$version || '' == $version ) ) {
+		if ($this->overrule_transients() || (!isset($version) || !$version || '' == $version)) {
+			$raw_response = $this->remote_get(trailingslashit($this->config['raw_url']) . basename($this->config['slug']));
 
-			$raw_response = $this->remote_get( trailingslashit( $this->config['raw_url'] ) . basename( $this->config['slug'] ) );
-
-			if ( is_wp_error( $raw_response ) )
-				$version = false;
-
-			if (is_array($raw_response)) {
-				if (!empty($raw_response['body']))
-					preg_match( '/.*Version\:\s*(.*)$/mi', $raw_response['body'], $matches );
+			if (is_wp_error($raw_response)) {
+				$this->log_error('Failed to get version: ' . $raw_response->get_error_message());
+				return false;
 			}
 
-			if ( empty( $matches[1] ) )
-				$version = false;
-			else
-				$version = $matches[1];
-
-			// back compat for older readme version handling
-			// only done when there is no version found in file name
-			if ( false === $version ) {
-				$raw_response = $this->remote_get( trailingslashit( $this->config['raw_url'] ) . $this->config['readme'] );
-
-				if ( is_wp_error( $raw_response ) )
-					return $version;
-
-				preg_match( '#^\s*`*~Current Version\:\s*([^~]*)~#im', $raw_response['body'], $__version );
-
-				if ( isset( $__version[1] ) ) {
-					$version_readme = $__version[1];
-					if ( -1 == version_compare( $version, $version_readme ) )
-						$version = $version_readme;
-				}
+			if (is_array($raw_response) && !empty($raw_response['body'])) {
+				// Improved version regex to match "Version: X.X.X" format
+				preg_match('/^\s*Version\:\s*(\d+\.\d+\.\d+)\s*$/mi', $raw_response['body'], $matches);
 			}
 
-			// refresh every 6 hours
-			if ( false !== $version )
-				set_site_transient( md5($this->config['slug']).'_new_version', $version, 60*60*6 );
+			if (empty($matches[1])) {
+				$this->log_error('Failed to parse version from response');
+				$version = false;
+			} else {
+				$version = sanitize_text_field($matches[1]);
+			}
+
+			// Cache version number for 6 hours
+			set_site_transient(md5($this->config['slug']).'_new_version', $version, 60*60*6);
 		}
 
 		return $version;
@@ -399,33 +396,47 @@ class WP_GitHub_Updater {
 	 * @param boolean $true       always true
 	 * @param mixed   $hook_extra not used
 	 * @param array   $result     the result of the move
-	 * @return array $result the result of the move
+	 * @return array|WP_Error $result the result of the move or error
 	 */
-	public function upgrader_post_install( $true, $hook_extra, $result ) {
-
+	public function upgrader_post_install($true, $hook_extra, $result) {
 		global $wp_filesystem;
+
+		// Ensure we have the filesystem
+		if (!$wp_filesystem) {
+			require_once ABSPATH . 'wp-admin/includes/file.php';
+			WP_Filesystem();
+		}
 
 		// Move & Activate
 		$proper_destination = WP_PLUGIN_DIR.'/'.$this->config['proper_folder_name'];
-		$moved = $wp_filesystem->move( $result['destination'], $proper_destination );
-		if ( $moved ) {
-			$result['destination'] = $proper_destination;
+		
+		// Make sure destination directory exists
+		if (!$wp_filesystem->exists($proper_destination)) {
+			$wp_filesystem->mkdir($proper_destination);
 		}
-		activate_plugin( WP_PLUGIN_DIR.'/'.$this->config['slug'] );
+		
+		// Attempt to move the files
+		$moved = $wp_filesystem->move($result['destination'], $proper_destination);
+		
+		if (!$moved) {
+			$this->log_error('Failed to move plugin files to: ' . $proper_destination);
+			return new WP_Error('move_failed', 'Failed to move plugin files to proper destination');
+		}
+
+		$result['destination'] = $proper_destination;
+
+		// Activate plugin and suppress any output
+		ob_start();
+		$activation_result = activate_plugin(WP_PLUGIN_DIR.'/'.$this->config['slug']);
+		ob_end_clean();
+
+		if (is_wp_error($activation_result)) {
+			$this->log_error('Plugin activation failed: ' . $activation_result->get_error_message());
+			// Don't return error here as it may break the update process
+			// Just log it and continue
+		}
 
 		return $result;
-
-	}
-
-	/**
-	 * Log error message
-	 *
-	 * @param string $message Error message to log
-	 * @return void
-	 */
-	private function log_error($message) {
-		error_log('GitHub Updater (' . $this->config['slug'] . '): ' . $message);
-		update_option('github_updater_error_' . $this->config['slug'], $message);
 	}
 
 	/**
