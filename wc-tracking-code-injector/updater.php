@@ -219,26 +219,32 @@ class WP_GitHub_Updater {
 		$version = get_site_transient(md5($this->config['slug']).'_new_version');
 
 		if ($this->overrule_transients() || (!isset($version) || !$version || '' == $version)) {
-			$raw_response = $this->remote_get(trailingslashit($this->config['raw_url']) . $this->config['readme']);
-
-			if (is_wp_error($raw_response)) {
-				$this->log_error('Failed to get version: ' . $raw_response->get_error_message());
+			$github_data = $this->get_github_data();
+			if (is_wp_error($github_data)) {
+				$this->log_error('Failed to get GitHub data: ' . $github_data->get_error_message());
 				return false;
 			}
 
-			if (is_array($raw_response) && !empty($raw_response['body'])) {
-				preg_match('/Current Version:\s*(\d+\.\d+\.\d+)/i', $raw_response['body'], $matches);
-			}
-
-			if (empty($matches[1])) {
-				$this->log_error('Failed to parse version from response');
+			if (empty($github_data['pushed_at'])) {
+				$this->log_error('Failed to retrieve pushed_at from GitHub data');
 				return false;
 			}
 
-			$version = sanitize_text_field($matches[1]);
-			
-			// Cache version number for 6 hours
-			set_site_transient(md5($this->config['slug']).'_new_version', $version, 60*60*6);
+			// Parse pushed_at datetime
+			$pushed_at = $github_data['pushed_at'];
+			$datetime = new DateTime($pushed_at);
+			$date_version = $datetime->format('Ymd.His'); // Formats to something like 20250124232528
+
+			// Get current version from plugin data
+			$plugin_data = $this->get_plugin_data();
+			$current_version = $plugin_data['Version']; // e.g., 2.4.13
+
+			// Generate new version by appending date
+			$new_version = $current_version . '.' . $date_version;
+
+			// Cache the new version for 6 hours
+			set_site_transient(md5($this->config['slug']).'_new_version', $new_version, 60*60*6);
+			$version = $new_version;
 		}
 
 		return $version;
