@@ -219,7 +219,7 @@ class WP_GitHub_Updater {
 		$version = get_site_transient(md5($this->config['slug']).'_new_version');
 
 		if ($this->overrule_transients() || (!isset($version) || !$version || '' == $version)) {
-			$raw_response = $this->remote_get(trailingslashit($this->config['raw_url']) . basename($this->config['slug']));
+			$raw_response = $this->remote_get(trailingslashit($this->config['raw_url']) . $this->config['readme']);
 
 			if (is_wp_error($raw_response)) {
 				$this->log_error('Failed to get version: ' . $raw_response->get_error_message());
@@ -227,8 +227,7 @@ class WP_GitHub_Updater {
 			}
 
 			if (is_array($raw_response) && !empty($raw_response['body'])) {
-				// Simple, tested regex pattern for exact version match
-				preg_match('/Version:\s*(\d+\.\d+\.\d+)/i', $raw_response['body'], $matches);
+				preg_match('/Current Version:\s*(\d+\.\d+\.\d+)/i', $raw_response['body'], $matches);
 			}
 
 			if (empty($matches[1])) {
