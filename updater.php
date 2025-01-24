@@ -411,9 +411,20 @@ class WP_GitHub_Updater {
 			}
 
 			$proper_destination = WP_PLUGIN_DIR.'/'.$this->config['proper_folder_name'];
+			$source = $result['destination'];
 			
-			// Move files directly
-			$moved = $wp_filesystem->move($result['destination'], $proper_destination, true);
+			// Check if the source contains a single subdirectory (common in GitHub ZIPs)
+			$files = $wp_filesystem->dirlist($source);
+			if (is_array($files)) {
+				$files = array_keys($files);
+				// Check for a single directory in the extracted files
+				if (1 === count($files) && $wp_filesystem->is_dir(trailingslashit($source) . $files[0])) {
+					$source = trailingslashit($source) . $files[0];
+				}
+			}
+
+			// Move files
+			$moved = $wp_filesystem->move($source, $proper_destination, true);
 			if (!$moved) {
 				throw new Exception('Failed to move files to: ' . $proper_destination);
 			}
