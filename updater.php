@@ -259,7 +259,8 @@ class WP_GitHub_Updater {
 			$github_data = get_site_transient(md5($this->config['slug'] . '_github_data'));
 
 			if ($this->overrule_transients() || (!$github_data && !isset($github_data['id']))) {
-				$github_data = $this->remote_get(trailingslashit($this->config['api_url']) . 'repos/' . $this->config['github_user'] . '/' . $this->config['github_repo']);
+				// Use the pre-defined api_url directly
+				$github_data = $this->remote_get($this->config['api_url']);
 
 				if (is_wp_error($github_data)) {
 					return false;
