@@ -54,7 +54,7 @@ class WatsonPixelTracking {
         // Store config for update checks
         $this->config = array(
             'slug' => plugin_basename(__FILE__),
-            'proper_folder_name' => dirname(plugin_basename(__FILE__))
+            'proper_folder_name' => 'wc-tracking-code-injector'
         );
 
         // Add debug shortcode
@@ -69,28 +69,28 @@ class WatsonPixelTracking {
         }
     }
 
-    public function init_github_updater() {
-        if (!is_admin()) return;
-
-        $config = array(
-            'main_plugin_file' => __FILE__,
-            'slug' => plugin_basename(__FILE__),
-            'proper_folder_name' => dirname(plugin_basename(__FILE__)),
-            'api_url' => 'https://api.github.com/repos/Watson-Creative/wc-tracking-code-injector',
-            'raw_url' => 'https://raw.githubusercontent.com/Watson-Creative/wc-tracking-code-injector/main',
-            'github_url' => 'https://github.com/Watson-Creative/wc-tracking-code-injector',
-            'zip_url' => 'https://github.com/Watson-Creative/wc-tracking-code-injector/archive/refs/heads/main.zip',
-            'sslverify' => true,
-            'requires' => '6.0',
-            'tested' => '6.5',
-            'readme' => 'README.md',
-            'access_token' => '',
-        );
-
-        if (class_exists('WP_GitHub_Updater')) {
-            new WP_GitHub_Updater($config);
-        }
-    }
+	public function init_github_updater() {
+		if (!is_admin()) return;
+	
+		$config = array(
+			'main_plugin_file' => __FILE__,
+			'slug' => plugin_basename(__FILE__),
+			'proper_folder_name' => 'wc-tracking-code-injector',
+			'api_url' => 'https://api.github.com/repos/Watson-Creative/wc-tracking-code-injector',
+			'raw_url' => 'https://raw.githubusercontent.com/Watson-Creative/wc-tracking-code-injector/main',
+			'github_url' => 'https://github.com/Watson-Creative/wc-tracking-code-injector',
+			'zip_url' => 'https://github.com/Watson-Creative/wc-tracking-code-injector/archive/refs/heads/main.zip',
+			'sslverify' => true,
+			'requires' => '6.0',
+			'tested' => '6.5',
+			'readme' => 'README.md',
+			'access_token' => '',
+		);
+	
+		if (class_exists('WP_GitHub_Updater')) {
+			new WP_GitHub_Updater($config);
+		}
+	}
 
     // Force transient refresh method
     public function force_transient_refresh() {
