@@ -4,7 +4,7 @@ Plugin Name: WC Tracking Code Injector
 Plugin URI: https://github.com/Watson-Creative/wc-tracking-code-injector
 GitHub Plugin URI: https://github.com/Watson-Creative/wc-tracking-code-injector
 description: Add tags for Sentry.IO, Google Analytics, Google Tag Manager, Hubspot and Facebook code in appropriate locations globally from WP Admin menu. Code is only printed in a live Pantheon environment to prevent skewing data with traffic on the development or testing environments.
-Version: 2.4.10
+Version: 2.4.11
 Author: Spencer Thayer, Hunter Watson, Alex Tryon
 Author URI: https://watsoncreative.com
 License: GPL2
@@ -47,7 +47,7 @@ class WatsonPixelTracking {
         }
         add_action('wp_head', [$this, 'print_code_head']);
         if (defined('PANTHEON_ENVIRONMENT') && PANTHEON_ENVIRONMENT === 'live') {
-            add_filter('body_class', [$this, 'add_body_class']);
+            add_action('wp_footer', [$this, 'print_gtm_noscript']);
         }
         add_action('admin_init', [$this, 'create_default_values']);
 
@@ -210,34 +210,41 @@ class WatsonPixelTracking {
 				echo "\n<!-- End Google Site Verification -->\n";
 			}
 			
-			// Google Analytics Header Code
+			// Google Analytics & GA4 Implementation
 			$GA_CODE = get_option("ga_inject_code");
 			$GA_MEASUREMENT_ID = get_option("ga4_measurement_id");
-			if (!$GA_MEASUREMENT_ID || $GA_MEASUREMENT_ID === 'G-XXXXXX') {
-				$GA_MEASUREMENT_ID = false;
-			}
-			if ($GA_CODE && $GA_CODE !== 'UA-XXXXX-X') {
-				echo '<script async src="https://www.googletagmanager.com/gtag/js?id=' . $GA_CODE . '"></script>
-					  <script>window.dataLayer = window.dataLayer || [];
-					  function gtag(){dataLayer.push(arguments);}
-					  gtag("js", new Date());';
-				echo 'gtag("config", "' . $GA_CODE . '");';
-				if ($GA_MEASUREMENT_ID) {
-					echo 'gtag("config", "' . $GA_MEASUREMENT_ID . '");';
+
+			$GA4_VALID = $GA_MEASUREMENT_ID && $GA_MEASUREMENT_ID !== 'G-XXXXXX';
+			$UA_VALID = $GA_CODE && $GA_CODE !== 'UA-XXXXX-X';
+
+			if ($GA4_VALID || $UA_VALID) {
+				$measurement_id = $GA4_VALID ? $GA_MEASUREMENT_ID : $GA_CODE;
+				echo "\n<!-- Google tag (gtag.js) -->\n";
+				echo '<script async src="https://www.googletagmanager.com/gtag/js?id=' . esc_attr($measurement_id) . '"></script>';
+				echo '<script>';
+				echo 'window.dataLayer = window.dataLayer || [];';
+				echo 'function gtag(){dataLayer.push(arguments);}';
+				echo 'gtag("js", new Date());';
+				if ($GA4_VALID) {
+					echo 'gtag("config", "' . esc_attr($GA_MEASUREMENT_ID) . '");';
+				}
+				if ($UA_VALID) {
+					echo 'gtag("config", "' . esc_attr($GA_CODE) . '");';
 				}
 				echo '</script>';
+				echo "\n<!-- End Google tag (gtag.js) -->\n";
 			}
-	
+
 			// Google Tag Manager Header Code
 			$GTM_CODE = get_option("gtm_inject_code");
 			if ($GTM_CODE && $GTM_CODE !== 'GTM-XXXX') {
-				echo "<!-- Google Tag Manager -->
-					  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-					  new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-					  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-					  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-					  })(window,document,'script','dataLayer','" . $GTM_CODE . "');</script>
-					  <!-- End Google Tag Manager -->";
+				echo "\n<!-- Google Tag Manager -->\n";
+				echo '<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({\'gtm.start\':
+				new Date().getTime(),event:\'gtm.js\'});var f=d.getElementsByTagName(s)[0],
+				j=d.createElement(s),dl=l!=\'dataLayer\'?\'&l=\'+l:\'\';j.async=true;j.src=
+				\'https://www.googletagmanager.com/gtm.js?id=\'+i+dl;f.parentNode.insertBefore(j,f);
+				})(window,document,\'script\',\'dataLayer\',\'' . esc_attr($GTM_CODE) . '\');</script>';
+				echo "\n<!-- End Google Tag Manager -->\n";
 			}
 	
 			// Facebook Pixel Code
@@ -253,11 +260,11 @@ class WatsonPixelTracking {
 					  t.src=v;s=b.getElementsByTagName(e)[0];
 					  s.parentNode.insertBefore(t,s)}(window, document,\'script\',
 					  \'https://connect.facebook.net/en_US/fbevents.js\');
-					  fbq(\'init\', \'' . $FB_PIXEL_CODE . '\');
+					  fbq(\'init\', \'' . esc_js($FB_PIXEL_CODE) . '\');
 					  fbq(\'track\', \'PageView\');
 					  </script>
 					  <noscript><img height="1" width="1" style="display:none"
-					  src="https://www.facebook.com/tr?id=' . $FB_PIXEL_CODE . '&ev=PageView&noscript=1"
+					  src="https://www.facebook.com/tr?id=' . esc_attr($FB_PIXEL_CODE) . '&ev=PageView&noscript=1"
 					  /></noscript>
 					  <!-- End Facebook Pixel Code -->';
 			}
@@ -269,7 +276,7 @@ class WatsonPixelTracking {
 			}
 			if ($HBS_CODE && strlen($HBS_CODE) > 0 && $HBS_CODE !== '########') {
 				echo "\n<!-- Start of HubSpot Embed Code -->\n";
-				echo '<script type="text/javascript" id="hs-script-loader" async defer src="//js.hs-scripts.com/'.$HBS_CODE.'.js"></script>';
+				echo '<script type="text/javascript" id="hs-script-loader" async defer src="' . esc_url('//js.hs-scripts.com/' . $HBS_CODE . '.js') . '"></script>';
 				echo "\n<!-- End of HubSpot Embed Code -->\n";
 			}
 	
@@ -316,7 +323,7 @@ class WatsonPixelTracking {
 				  ></script>
 				  <script>
 				  Sentry.init({
-				  dsn: "'.$SENTRY_DSN.'",
+				  dsn: "'.esc_js($SENTRY_DSN).'",
 				  environment: window.location.host
 				  });
 				  </script>';
@@ -324,14 +331,16 @@ class WatsonPixelTracking {
 		}
 	}
 
-    public function add_body_class($classes) {
-        $GTM_CODE = get_option("gtm_inject_code");
-        if ($GTM_CODE && $GTM_CODE !== 'GTM-XXXX') {
-            $PRINT_CODE = '<!-- Google Tag Manager (noscript) -->';
-            $classes[] = '">' . $PRINT_CODE . '<br style="display:none';
-            return $classes;
+    public function print_gtm_noscript() {
+        if (defined('PANTHEON_ENVIRONMENT') && PANTHEON_ENVIRONMENT === 'live') {
+            $GTM_CODE = get_option("gtm_inject_code");
+            if ($GTM_CODE && $GTM_CODE !== 'GTM-XXXX') {
+                echo "\n<!-- Google Tag Manager (noscript) -->\n";
+                echo '<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=' . esc_attr($GTM_CODE) . '"
+                height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>';
+                echo "\n<!-- End Google Tag Manager (noscript) -->\n";
+            }
         }
-        return $classes;
     }
 
 	public function settings_page() {
@@ -380,7 +389,7 @@ class WatsonPixelTracking {
 					</tr>
 					<tr valign="top">
 						<th scope="row">Schema.org Object Notation</th>
-						<td><textarea name="custom_inject_code" rows="15" cols="80"><?php echo esc_attr(get_option('custom_inject_code')); ?></textarea></td>
+						<td><textarea name="custom_inject_code" rows="15" cols="80"><?php echo esc_textarea(get_option('custom_inject_code')); ?></textarea></td>
 					</tr>
 				</table>
 				<?php submit_button('Save Changes'); ?>
