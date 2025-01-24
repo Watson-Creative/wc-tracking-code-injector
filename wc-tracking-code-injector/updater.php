@@ -404,8 +404,13 @@ class WP_GitHub_Updater {
 		
 		global $wp_filesystem;
 		try {
+			// Add debug logging
+			$this->log_error('Starting installation process');
+			$this->log_error('Source: ' . $result['destination']);
+			
 			// Initialize filesystem
 			if (!$wp_filesystem || !is_object($wp_filesystem)) {
+				$this->log_error('Initializing WP Filesystem');
 				require_once ABSPATH . 'wp-admin/includes/file.php';
 				WP_Filesystem();
 			}
@@ -413,36 +418,49 @@ class WP_GitHub_Updater {
 			$proper_destination = WP_PLUGIN_DIR.'/'.$this->config['proper_folder_name'];
 			$source = $result['destination'];
 			
+			$this->log_error('Proper destination: ' . $proper_destination);
+			
 			// Check if the source contains a single subdirectory (common in GitHub ZIPs)
 			$files = $wp_filesystem->dirlist($source);
 			if (is_array($files)) {
 				$files = array_keys($files);
+				$this->log_error('Found files in source: ' . implode(', ', $files));
 				// Check for a single directory in the extracted files
 				if (1 === count($files) && $wp_filesystem->is_dir(trailingslashit($source) . $files[0])) {
 					$source = trailingslashit($source) . $files[0];
+					$this->log_error('Using subdirectory as source: ' . $source);
 				}
 			}
 
 			// Move files
+			$this->log_error('Attempting to move files from ' . $source . ' to ' . $proper_destination);
 			$moved = $wp_filesystem->move($source, $proper_destination, true);
 			if (!$moved) {
 				throw new Exception('Failed to move files to: ' . $proper_destination);
 			}
+			$this->log_error('Files moved successfully');
 
 			$result['destination'] = $proper_destination;
 
 			// Activate plugin
+			$this->log_error('Attempting to activate plugin: ' . $this->config['slug']);
 			$activation_result = activate_plugin($this->config['slug']);
 			if (is_wp_error($activation_result)) {
 				throw new Exception('Activation failed: ' . $activation_result->get_error_message());
 			}
+			$this->log_error('Plugin activated successfully');
 
 		} catch (Exception $e) {
-			$this->log_error($e->getMessage());
+			// Add filesystem error details if available
+			if ($wp_filesystem && is_object($wp_filesystem) && !empty($wp_filesystem->errors) && is_wp_error($wp_filesystem->errors)) {
+				$this->log_error('Filesystem Errors: ' . print_r($wp_filesystem->errors->get_error_messages(), true));
+			}
+			$this->log_error('Installation failed: ' . $e->getMessage());
 			ob_end_clean();
 			return new WP_Error('update_failed', $e->getMessage());
 		}
 
+		$this->log_error('Installation completed successfully');
 		ob_end_clean();
 		return $result;
 	}
