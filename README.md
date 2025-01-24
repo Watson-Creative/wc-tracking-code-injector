@@ -1,6 +1,6 @@
 === WC Tracking Code Injector ===
 
-Current Version: 2.4.5
+Current Version: 2.4.6
 
 Add tags for Sentry.IO, Google Analytics, Google Tag Manager, Hubspot and Facebook code in appropriate locations globally from WP Admin menu. Code is only printed in a live Pantheon environment to prevent skewing data with traffic on the development or testing environments.
 - Author: Spencer Thayer, Hunter Watson, Alex Tryon
