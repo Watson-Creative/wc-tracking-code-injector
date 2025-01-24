@@ -393,7 +393,7 @@ class WP_GitHub_Updater {
 
 	/**
 	 * Upgrader/Updater
-	 * Move & activate the plugin, echo the update message
+	 * Move & activate the plugin
 	 *
 	 * @since 1.0
 	 * @param boolean $true       always true
@@ -407,14 +407,12 @@ class WP_GitHub_Updater {
 
 		// Move & Activate
 		$proper_destination = WP_PLUGIN_DIR.'/'.$this->config['proper_folder_name'];
-		$wp_filesystem->move( $result['destination'], $proper_destination );
-		$result['destination'] = $proper_destination;
-		$activate = activate_plugin( WP_PLUGIN_DIR.'/'.$this->config['slug'] );
+		$moved = $wp_filesystem->move( $result['destination'], $proper_destination );
+		if ( $moved ) {
+			$result['destination'] = $proper_destination;
+		}
+		activate_plugin( WP_PLUGIN_DIR.'/'.$this->config['slug'] );
 
-		// Output the update message
-		$fail  = __( 'The plugin has been updated, but could not be reactivated. Please reactivate it manually.', 'github_plugin_updater' );
-		$success = __( 'Plugin reactivated successfully.', 'github_plugin_updater' );
-		echo is_wp_error( $activate ) ? $fail : $success;
 		return $result;
 
 	}
