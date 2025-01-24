@@ -261,13 +261,19 @@ class WP_GitHub_Updater {
 	 * @return array $github_data the data
 	 */
 	public function get_github_data() {
-		// Add rate limiting for GitHub API calls
+		// Only use API rate limiting for background checks
 		$api_call_transient = md5($this->config['slug'] . '_github_api_call');
 		$last_api_call = get_site_transient($api_call_transient);
+		$is_manual_check = isset($_GET['force-check']) || $this->overrule_transients();
 		
-		if ($last_api_call && !$this->overrule_transients()) {
-			$this->log("Skipping GitHub API call - rate limiting", 'debug');
-			return $this->github_data;
+		// Skip rate limiting if it's a manual check
+		if ($last_api_call && !$is_manual_check) {
+			$time_since_last_check = time() - $last_api_call;
+			// Only rate limit if last check was less than 5 minutes ago
+			if ($time_since_last_check < 300) { // 5 minutes
+				$this->log("Skipping GitHub API call - rate limiting (checked " . $time_since_last_check . " seconds ago)", 'debug');
+				return $this->github_data;
+			}
 		}
 
 		if (!empty($this->github_data)) {
@@ -278,7 +284,7 @@ class WP_GitHub_Updater {
 		$this->log("Checking GitHub data transient");
 		$github_data = get_site_transient(md5($this->config['slug'] . '_github_data'));
 
-		if ($this->overrule_transients() || (!$github_data && !isset($github_data['id']))) {
+		if ($is_manual_check || (!$github_data && !isset($github_data['id']))) {
 			$this->log("Fetching fresh data from GitHub API: " . $this->config['api_url']);
 			$github_data = $this->remote_get($this->config['api_url']);
 
@@ -295,10 +301,11 @@ class WP_GitHub_Updater {
 			}
 
 			$this->log("Successfully retrieved GitHub data");
-			// refresh every 6 hours
-			set_site_transient(md5($this->config['slug'] . '_github_data'), $github_data, 60 * 60 * 6);
+			// refresh every hour for normal checks
+			$cache_time = $is_manual_check ? 0 : 60 * 60;
+			set_site_transient(md5($this->config['slug'] . '_github_data'), $github_data, $cache_time);
 			// Set API call timestamp
-			set_site_transient($api_call_transient, time(), 60 * 60); // 1 hour rate limit
+			set_site_transient($api_call_transient, time(), 300); // 5 minute rate limit
 		} else {
 			$this->log("Using cached GitHub data from transient");
 		}
@@ -353,12 +360,18 @@ class WP_GitHub_Updater {
 	 * @return object $transient updated plugin data transient
 	 */
 	public function api_check( $transient ) {
-		// Add rate limiting - only check once every 12 hours
+		// Only use rate limiting for background checks
 		$last_check = get_site_transient(md5($this->config['slug']).'_last_update_check');
 		$now = time();
+		$is_manual_check = isset($_GET['force-check']) || $this->overrule_transients();
 		
-		if ($last_check && ($now - $last_check) < 43200) { // 12 hours in seconds
-			return $transient;
+		// Skip rate limiting for manual checks
+		if ($last_check && !$is_manual_check) {
+			$time_since_last_check = $now - $last_check;
+			// Only rate limit if last check was less than 5 minutes ago
+			if ($time_since_last_check < 300) { // 5 minutes
+				return $transient;
+			}
 		}
 		
 		// Log the backtrace to see what's triggering the check
@@ -366,13 +379,15 @@ class WP_GitHub_Updater {
 		$caller = isset($backtrace[2]) ? $backtrace[2]['function'] : 'unknown';
 		$this->log("Update check triggered by: {$caller}", 'debug');
 		
-		set_site_transient(md5($this->config['slug']).'_last_update_check', $now, 43200);
+		set_site_transient(md5($this->config['slug']).'_last_update_check', $now, 300); // 5 minute cache
 		
 		$this->log("Starting plugin update check");
 
-		// Clear cached version data
-		delete_site_transient(md5($this->config['slug']).'_new_version');
-		delete_site_transient(md5($this->config['slug'].'_github_data'));
+		// Only clear cached data for manual checks
+		if ($is_manual_check) {
+			delete_site_transient(md5($this->config['slug']).'_new_version');
+			delete_site_transient(md5($this->config['slug'].'_github_data'));
+		}
 
 		if (empty($transient->checked)) {
 			$this->log("No plugins to check for updates");
