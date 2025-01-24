@@ -227,17 +227,17 @@ class WP_GitHub_Updater {
 			}
 
 			if (is_array($raw_response) && !empty($raw_response['body'])) {
-				// Improved version regex to match "Version: X.X.X" format
-				preg_match('/^\s*Version\:\s*(\d+\.\d+\.\d+)\s*$/mi', $raw_response['body'], $matches);
+				// Simple, tested regex pattern for exact version match
+				preg_match('/Version:\s*(\d+\.\d+\.\d+)/i', $raw_response['body'], $matches);
 			}
 
 			if (empty($matches[1])) {
 				$this->log_error('Failed to parse version from response');
-				$version = false;
-			} else {
-				$version = sanitize_text_field($matches[1]);
+				return false;
 			}
 
+			$version = sanitize_text_field($matches[1]);
+			
 			// Cache version number for 6 hours
 			set_site_transient(md5($this->config['slug']).'_new_version', $version, 60*60*6);
 		}
@@ -330,24 +330,25 @@ class WP_GitHub_Updater {
 	 */
 	public function api_check( $transient ) {
 
-		// Check if the transient contains the 'checked' information
-		// If not, just return its value without hacking it
-		if ( empty( $transient->checked ) )
+		// Clear cached version data
+		delete_site_transient(md5($this->config['slug']).'_new_version');
+		delete_site_transient(md5($this->config['slug'].'_github_data'));
+
+		if (empty($transient->checked)) {
 			return $transient;
+		}
 
-		// check the version and decide if it's new
-		$update = version_compare( $this->config['new_version'], $this->config['version'] );
+		$this->get_github_data();
 
-		if ( 1 === $update ) {
+		$version = $this->get_new_version();
+		$current_version = $this->config['version'];
+
+		if ($version && version_compare($version, $current_version, '>')) {
 			$response = new stdClass;
-			$response->new_version = $this->config['new_version'];
+			$response->new_version = $version;
 			$response->slug = $this->config['proper_folder_name'];
-			$response->url = add_query_arg( array( 'access_token' => $this->config['access_token'] ), $this->config['github_url'] );
 			$response->package = $this->config['zip_url'];
-
-			// If response is false, don't alter the transient
-			if ( false !== $response )
-				$transient->response[ $this->config['slug'] ] = $response;
+			$transient->response[$this->config['slug']] = $response;
 		}
 
 		return $transient;
@@ -399,43 +400,39 @@ class WP_GitHub_Updater {
 	 * @return array|WP_Error $result the result of the move or error
 	 */
 	public function upgrader_post_install($true, $hook_extra, $result) {
-		global $wp_filesystem;
-
-		// Ensure we have the filesystem
-		if (!$wp_filesystem) {
-			require_once ABSPATH . 'wp-admin/includes/file.php';
-			WP_Filesystem();
-		}
-
-		// Move & Activate
-		$proper_destination = WP_PLUGIN_DIR.'/'.$this->config['proper_folder_name'];
-		
-		// Make sure destination directory exists
-		if (!$wp_filesystem->exists($proper_destination)) {
-			$wp_filesystem->mkdir($proper_destination);
-		}
-		
-		// Attempt to move the files
-		$moved = $wp_filesystem->move($result['destination'], $proper_destination);
-		
-		if (!$moved) {
-			$this->log_error('Failed to move plugin files to: ' . $proper_destination);
-			return new WP_Error('move_failed', 'Failed to move plugin files to proper destination');
-		}
-
-		$result['destination'] = $proper_destination;
-
-		// Activate plugin and suppress any output
 		ob_start();
-		$activation_result = activate_plugin(WP_PLUGIN_DIR.'/'.$this->config['slug']);
-		ob_end_clean();
+		
+		global $wp_filesystem;
+		try {
+			// Initialize filesystem
+			if (!$wp_filesystem || !is_object($wp_filesystem)) {
+				require_once ABSPATH . 'wp-admin/includes/file.php';
+				WP_Filesystem();
+			}
 
-		if (is_wp_error($activation_result)) {
-			$this->log_error('Plugin activation failed: ' . $activation_result->get_error_message());
-			// Don't return error here as it may break the update process
-			// Just log it and continue
+			$proper_destination = WP_PLUGIN_DIR.'/'.$this->config['proper_folder_name'];
+			
+			// Move files directly
+			$moved = $wp_filesystem->move($result['destination'], $proper_destination, true);
+			if (!$moved) {
+				throw new Exception('Failed to move files to: ' . $proper_destination);
+			}
+
+			$result['destination'] = $proper_destination;
+
+			// Activate plugin
+			$activation_result = activate_plugin($this->config['slug']);
+			if (is_wp_error($activation_result)) {
+				throw new Exception('Activation failed: ' . $activation_result->get_error_message());
+			}
+
+		} catch (Exception $e) {
+			$this->log_error($e->getMessage());
+			ob_end_clean();
+			return new WP_Error('update_failed', $e->getMessage());
 		}
 
+		ob_end_clean();
 		return $result;
 	}
 
