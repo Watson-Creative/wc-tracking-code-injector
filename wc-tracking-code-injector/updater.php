@@ -201,11 +201,14 @@ class WP_GitHub_Updater {
 	 * Log error message
 	 * 
 	 * @param string $message Error message to log
+	 * @param string $level Log level (error, info, debug)
 	 * @return void
 	 */
-	private function log_error($message) {
+	private function log($message, $level = 'info') {
 		if (defined('WP_DEBUG') && WP_DEBUG) {
-			error_log('[WC Tracking Code Injector] ' . $message);
+			$timestamp = date('Y-m-d H:i:s');
+			$plugin_name = $this->config['plugin_name'] ?? 'WC Tracking Code Injector';
+			error_log("[{$timestamp}] [{$plugin_name}] [{$level}] {$message}");
 		}
 	}
 
@@ -221,12 +224,12 @@ class WP_GitHub_Updater {
 		if ($this->overrule_transients() || (!isset($version) || !$version || '' == $version)) {
 			$github_data = $this->get_github_data();
 			if (is_wp_error($github_data)) {
-				$this->log_error('Failed to get GitHub data: ' . $github_data->get_error_message());
+				$this->log('Failed to get GitHub data: ' . $github_data->get_error_message(), 'error');
 				return false;
 			}
 
 			if (empty($github_data['pushed_at'])) {
-				$this->log_error('Failed to retrieve pushed_at from GitHub data');
+				$this->log('Failed to retrieve pushed_at from GitHub data', 'error');
 				return false;
 			}
 
@@ -258,34 +261,49 @@ class WP_GitHub_Updater {
 	 * @return array $github_data the data
 	 */
 	public function get_github_data() {
-		if (!empty($this->github_data)) {
-			$github_data = $this->github_data;
-		} else {
-			$github_data = get_site_transient(md5($this->config['slug'] . '_github_data'));
-
-			if ($this->overrule_transients() || (!$github_data && !isset($github_data['id']))) {
-				// Use the pre-defined api_url directly
-				$github_data = $this->remote_get($this->config['api_url']);
-
-				if (is_wp_error($github_data)) {
-					return false;
-				}
-
-				$github_data = json_decode($github_data['body'], true);
-
-				// Validate decoded JSON data
-				if (!is_array($github_data)) {
-					return false;
-				}
-
-				// refresh every 6 hours
-				set_site_transient(md5($this->config['slug'] . '_github_data'), $github_data, 60 * 60 * 6);
-			}
-
-			// Store the data in this class instance for future calls
-			$this->github_data = $github_data;
+		// Add rate limiting for GitHub API calls
+		$api_call_transient = md5($this->config['slug'] . '_github_api_call');
+		$last_api_call = get_site_transient($api_call_transient);
+		
+		if ($last_api_call && !$this->overrule_transients()) {
+			$this->log("Skipping GitHub API call - rate limiting", 'debug');
+			return $this->github_data;
 		}
 
+		if (!empty($this->github_data)) {
+			$this->log("Using cached GitHub data");
+			return $this->github_data;
+		}
+
+		$this->log("Checking GitHub data transient");
+		$github_data = get_site_transient(md5($this->config['slug'] . '_github_data'));
+
+		if ($this->overrule_transients() || (!$github_data && !isset($github_data['id']))) {
+			$this->log("Fetching fresh data from GitHub API: " . $this->config['api_url']);
+			$github_data = $this->remote_get($this->config['api_url']);
+
+			if (is_wp_error($github_data)) {
+				$this->log("Failed to fetch GitHub data: " . $github_data->get_error_message(), 'error');
+				return false;
+			}
+
+			$github_data = json_decode($github_data['body'], true);
+
+			if (!is_array($github_data)) {
+				$this->log("Invalid GitHub data format received", 'error');
+				return false;
+			}
+
+			$this->log("Successfully retrieved GitHub data");
+			// refresh every 6 hours
+			set_site_transient(md5($this->config['slug'] . '_github_data'), $github_data, 60 * 60 * 6);
+			// Set API call timestamp
+			set_site_transient($api_call_transient, time(), 60 * 60); // 1 hour rate limit
+		} else {
+			$this->log("Using cached GitHub data from transient");
+		}
+
+		$this->github_data = $github_data;
 		return $github_data;
 	}
 
@@ -335,26 +353,63 @@ class WP_GitHub_Updater {
 	 * @return object $transient updated plugin data transient
 	 */
 	public function api_check( $transient ) {
+		// Add rate limiting - only check once every 12 hours
+		$last_check = get_site_transient(md5($this->config['slug']).'_last_update_check');
+		$now = time();
+		
+		if ($last_check && ($now - $last_check) < 43200) { // 12 hours in seconds
+			return $transient;
+		}
+		
+		// Log the backtrace to see what's triggering the check
+		$backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3);
+		$caller = isset($backtrace[2]) ? $backtrace[2]['function'] : 'unknown';
+		$this->log("Update check triggered by: {$caller}", 'debug');
+		
+		set_site_transient(md5($this->config['slug']).'_last_update_check', $now, 43200);
+		
+		$this->log("Starting plugin update check");
 
 		// Clear cached version data
 		delete_site_transient(md5($this->config['slug']).'_new_version');
 		delete_site_transient(md5($this->config['slug'].'_github_data'));
 
 		if (empty($transient->checked)) {
+			$this->log("No plugins to check for updates");
 			return $transient;
 		}
 
+		$this->log("Fetching GitHub data");
 		$this->get_github_data();
 
 		$version = $this->get_new_version();
 		$current_version = $this->config['version'];
+		
+		$this->log("Current version: {$current_version}, Latest version: {$version}");
 
 		if ($version && version_compare($version, $current_version, '>')) {
+			$this->log("New version available. Preparing update package");
 			$response = new stdClass;
 			$response->new_version = $version;
 			$response->slug = $this->config['proper_folder_name'];
 			$response->package = $this->config['zip_url'];
+			$this->log("Update package URL: {$response->package}", 'debug');
+			
+			// Test if the package is accessible
+			$test_response = wp_remote_head($response->package);
+			if (is_wp_error($test_response)) {
+				$this->log("Package URL is not accessible: " . $test_response->get_error_message(), 'error');
+			} else {
+				$response_code = wp_remote_retrieve_response_code($test_response);
+				$this->log("Package URL response code: {$response_code}", 'debug');
+				if ($response_code !== 200) {
+					$this->log("Package URL returned non-200 status code: {$response_code}", 'error');
+				}
+			}
+			
 			$transient->response[$this->config['slug']] = $response;
+		} else {
+			$this->log("No update needed - current version is latest");
 		}
 
 		return $transient;
@@ -410,63 +465,92 @@ class WP_GitHub_Updater {
 		
 		global $wp_filesystem;
 		try {
-			// Add debug logging
-			$this->log_error('Starting installation process');
-			$this->log_error('Source: ' . $result['destination']);
+			$this->log("Starting plugin installation process");
 			
-			// Initialize filesystem
+			if (empty($result['destination'])) {
+				throw new Exception("No destination specified in the installation result");
+			}
+			
+			$this->log("Source directory: " . $result['destination']);
+			
 			if (!$wp_filesystem || !is_object($wp_filesystem)) {
-				$this->log_error('Initializing WP Filesystem');
+				$this->log("Initializing WordPress Filesystem");
 				require_once ABSPATH . 'wp-admin/includes/file.php';
-				WP_Filesystem();
+				if (!WP_Filesystem()) {
+					throw new Exception("Failed to initialize WordPress Filesystem");
+				}
+				$this->log("WordPress Filesystem initialized successfully");
 			}
 
 			$proper_destination = WP_PLUGIN_DIR.'/'.$this->config['proper_folder_name'];
 			$source = $result['destination'];
 			
-			$this->log_error('Proper destination: ' . $proper_destination);
+			$this->log("Target destination: " . $proper_destination);
 			
-			// Check if the source contains a single subdirectory (common in GitHub ZIPs)
+			// Verify source directory exists
+			if (!$wp_filesystem->exists($source)) {
+				throw new Exception("Source directory does not exist: {$source}");
+			}
+			
+			// Check source directory contents
 			$files = $wp_filesystem->dirlist($source);
-			if (is_array($files)) {
-				$files = array_keys($files);
-				$this->log_error('Found files in source: ' . implode(', ', $files));
-				// Check for a single directory in the extracted files
-				if (1 === count($files) && $wp_filesystem->is_dir(trailingslashit($source) . $files[0])) {
-					$source = trailingslashit($source) . $files[0];
-					$this->log_error('Using subdirectory as source: ' . $source);
+			if (!is_array($files)) {
+				throw new Exception("Failed to list contents of source directory");
+			}
+			
+			$files = array_keys($files);
+			$this->log("Files found in source: " . implode(', ', $files));
+			
+			if (1 === count($files) && $wp_filesystem->is_dir(trailingslashit($source) . $files[0])) {
+				$source = trailingslashit($source) . $files[0];
+				$this->log("Using subdirectory as source: " . $source);
+			}
+
+			// Check if destination exists and is writable
+			if ($wp_filesystem->exists($proper_destination)) {
+				$this->log("Destination already exists, will be replaced");
+				if (!$wp_filesystem->is_writable($proper_destination)) {
+					throw new Exception("Destination directory is not writable: {$proper_destination}");
+				}
+			} else {
+				$dest_parent = dirname($proper_destination);
+				if (!$wp_filesystem->is_writable($dest_parent)) {
+					throw new Exception("Parent directory is not writable: {$dest_parent}");
 				}
 			}
 
 			// Move files
-			$this->log_error('Attempting to move files from ' . $source . ' to ' . $proper_destination);
+			$this->log("Moving files from {$source} to {$proper_destination}");
 			$moved = $wp_filesystem->move($source, $proper_destination, true);
 			if (!$moved) {
-				throw new Exception('Failed to move files to: ' . $proper_destination);
+				$error_message = "Failed to move files";
+				if (!empty($wp_filesystem->errors) && is_wp_error($wp_filesystem->errors)) {
+					$error_message .= ": " . $wp_filesystem->errors->get_error_message();
+				}
+				throw new Exception($error_message);
 			}
-			$this->log_error('Files moved successfully');
+			$this->log("Files moved successfully");
 
 			$result['destination'] = $proper_destination;
 
 			// Activate plugin
-			$this->log_error('Attempting to activate plugin: ' . $this->config['slug']);
+			$this->log("Attempting to activate plugin: " . $this->config['slug']);
 			$activation_result = activate_plugin($this->config['slug']);
 			if (is_wp_error($activation_result)) {
-				throw new Exception('Activation failed: ' . $activation_result->get_error_message());
+				throw new Exception("Plugin activation failed: " . $activation_result->get_error_message());
 			}
-			$this->log_error('Plugin activated successfully');
+			$this->log("Plugin activated successfully");
 
 		} catch (Exception $e) {
-			// Add filesystem error details if available
 			if ($wp_filesystem && is_object($wp_filesystem) && !empty($wp_filesystem->errors) && is_wp_error($wp_filesystem->errors)) {
-				$this->log_error('Filesystem Errors: ' . print_r($wp_filesystem->errors->get_error_messages(), true));
+				$this->log("Filesystem Errors: " . print_r($wp_filesystem->errors->get_error_messages(), true), 'error');
 			}
-			$this->log_error('Installation failed: ' . $e->getMessage());
+			$this->log("Installation failed: " . $e->getMessage(), 'error');
 			ob_end_clean();
 			return new WP_Error('update_failed', $e->getMessage());
 		}
 
-		$this->log_error('Installation completed successfully');
+		$this->log("Installation completed successfully");
 		ob_end_clean();
 		return $result;
 	}
@@ -478,8 +562,11 @@ class WP_GitHub_Updater {
 	 * @return mixed Response or false on error
 	 */
 	public function remote_get($query) {
+		$this->log("Making remote request to: " . $query);
+		
 		if (!empty($this->config['access_token'])) {
 			$query = add_query_arg(array('access_token' => $this->config['access_token']), $query);
+			$this->log("Added access token to request");
 		}
 
 		$response = wp_remote_get($query, array(
@@ -488,10 +575,11 @@ class WP_GitHub_Updater {
 		));
 
 		if (is_wp_error($response)) {
-			$this->log_error('API request failed: ' . $response->get_error_message());
+			$this->log("API request failed: " . $response->get_error_message(), 'error');
 			return false;
 		}
 
+		$this->log("Remote request completed successfully");
 		return $response;
 	}
 }
