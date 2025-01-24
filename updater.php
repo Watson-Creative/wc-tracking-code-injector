@@ -253,31 +253,30 @@ class WP_GitHub_Updater {
 	 * Get GitHub Data from the specified repository
 	 *
 	 * @since 1.0
-	 * @return object|false $github_data the data as object or false on error
+	 * @return array $github_data the data
 	 */
 	public function get_github_data() {
-		if ( isset( $this->github_data ) && ! empty( $this->github_data ) ) {
+		if (!empty($this->github_data)) {
 			$github_data = $this->github_data;
 		} else {
-			$github_data = get_site_transient( md5($this->config['slug']).'_github_data' );
+			$github_data = get_site_transient(md5($this->config['slug'] . '_github_data'));
 
-			if ( $this->overrule_transients() || ( ! isset( $github_data ) || ! $github_data || '' == $github_data ) ) {
-				$response = $this->remote_get( $this->config['api_url'] );
+			if ($this->overrule_transients() || (!$github_data && !isset($github_data['id']))) {
+				$github_data = $this->remote_get(trailingslashit($this->config['api_url']) . 'repos/' . $this->config['github_user'] . '/' . $this->config['github_repo']);
 
-				if ( is_wp_error( $response ) ) {
-					$this->log_error('Failed to get GitHub data: ' . $response->get_error_message());
+				if (is_wp_error($github_data)) {
 					return false;
 				}
 
-				$github_data = json_decode( $response['body'] ); // Return as object
+				$github_data = json_decode($github_data['body'], true);
 
-				if (json_last_error() !== JSON_ERROR_NONE) {
-					$this->log_error('Failed to decode GitHub response: ' . json_last_error_msg());
+				// Validate decoded JSON data
+				if (!is_array($github_data)) {
 					return false;
 				}
 
 				// refresh every 6 hours
-				set_site_transient( md5($this->config['slug']).'_github_data', $github_data, 60*60*6 );
+				set_site_transient(md5($this->config['slug'] . '_github_data'), $github_data, 60 * 60 * 6);
 			}
 
 			// Store the data in this class instance for future calls
@@ -296,7 +295,7 @@ class WP_GitHub_Updater {
 	 */
 	public function get_date() {
 		$data = $this->get_github_data();
-		return (!empty($data->updated_at)) ? date('Y-m-d', strtotime($data->updated_at)) : false;
+		return (!empty($data['updated_at'])) ? date('Y-m-d', strtotime($data['updated_at'])) : false;
 	}
 
 
@@ -308,7 +307,7 @@ class WP_GitHub_Updater {
 	 */
 	public function get_description() {
 		$data = $this->get_github_data();
-		return (!empty($data->description)) ? $data->description : false;
+		return (!empty($data['description'])) ? $data['description'] : false;
 	}
 
 
