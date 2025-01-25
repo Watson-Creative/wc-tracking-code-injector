@@ -87,7 +87,7 @@ class WP_GitHub_Updater {
 		// Add hooks to debug update process
 		add_filter( 'upgrader_pre_download', array( $this, 'pre_download_filter' ), 10, 4 );
 		add_filter( 'upgrader_pre_install', array( $this, 'pre_install_filter' ), 10, 2 );
-		add_filter( 'upgrader_source_selection', array( $this, 'source_selection_filter' ), 10, 4 );
+		// add_filter( 'upgrader_source_selection', array( $this, 'source_selection_filter' ), 10, 4 );
 		add_action( 'upgrader_process_complete', array( $this, 'after_update' ), 10, 2 );
 
 		// set timeout
@@ -695,47 +695,47 @@ class WP_GitHub_Updater {
 	/**
 	 * Source selection filter to log and modify the source directory
 	 */
-	public function source_selection_filter($source, $remote_source, $upgrader, $hook_extra) {
-		$this->log("Source selection filter triggered", 'debug');
-		$this->log("Source: " . $source, 'debug');
-		$this->log("Remote source: " . $remote_source, 'debug');
-		$this->log("Hook extra: " . print_r($hook_extra, true), 'debug');
+	// public function source_selection_filter($source, $remote_source, $upgrader, $hook_extra) {
+	// 	$this->log("Source selection filter triggered", 'debug');
+	// 	$this->log("Source: " . $source, 'debug');
+	// 	$this->log("Remote source: " . $remote_source, 'debug');
+	// 	$this->log("Hook extra: " . print_r($hook_extra, true), 'debug');
 		
-		if (!is_dir($source)) {
-			$this->log("Source directory does not exist: " . $source, 'error');
-			return new WP_Error('missing_source', "Source directory does not exist");
-		}
+	// 	if (!is_dir($source)) {
+	// 		$this->log("Source directory does not exist: " . $source, 'error');
+	// 		return new WP_Error('missing_source', "Source directory does not exist");
+	// 	}
 
-		// Check if this is a GitHub archive with an extra directory level
-		$github_archive_pattern = '/-main$/';
-		$source_parent = dirname($source);
-		$source_dirname = basename($source);
+	// 	// Check if this is a GitHub archive with an extra directory level
+	// 	$github_archive_pattern = '/-main$/';
+	// 	$source_parent = dirname($source);
+	// 	$source_dirname = basename($source);
 
-		if (preg_match($github_archive_pattern, $source_dirname)) {
-			$this->log("Detected GitHub archive structure, adjusting paths", 'debug');
+	// 	if (preg_match($github_archive_pattern, $source_dirname)) {
+	// 		$this->log("Detected GitHub archive structure, adjusting paths", 'debug');
 			
-			// Get the proper plugin folder name from config
-			$proper_folder = $this->config['proper_folder_name'];
-			$new_source = trailingslashit($source_parent) . $proper_folder;
+	// 		// Get the proper plugin folder name from config
+	// 		$proper_folder = $this->config['proper_folder_name'];
+	// 		$new_source = trailingslashit($source_parent) . $proper_folder;
 			
-			// If the proper folder already exists, remove it
-			if (is_dir($new_source)) {
-				$this->log("Removing existing target directory: " . $new_source, 'debug');
-				$upgrader->clear_destination($new_source);
-			}
+	// 		// If the proper folder already exists, remove it
+	// 		if (is_dir($new_source)) {
+	// 			$this->log("Removing existing target directory: " . $new_source, 'debug');
+	// 			$upgrader->clear_destination($new_source);
+	// 		}
 			
-			// Move from GitHub's directory structure to proper plugin directory
-			$this->log("Moving from {$source} to {$new_source}", 'debug');
-			if (@rename($source, $new_source)) {
-				$this->log("Successfully restructured plugin directory", 'debug');
-				return $new_source;
-			} else {
-				$this->log("Failed to restructure plugin directory", 'error');
-			}
-		}
+	// 		// Move from GitHub's directory structure to proper plugin directory
+	// 		$this->log("Moving from {$source} to {$new_source}", 'debug');
+	// 		if (@rename($source, $new_source)) {
+	// 			$this->log("Successfully restructured plugin directory", 'debug');
+	// 			return $new_source;
+	// 		} else {
+	// 			$this->log("Failed to restructure plugin directory", 'error');
+	// 		}
+	// 	}
 		
-		return $source;
-	}
+	// 	return $source;
+	// }
 
 	/**
 	 * After update hook to log completion
