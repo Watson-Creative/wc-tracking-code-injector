@@ -585,7 +585,16 @@ class WP_GitHub_Updater {
 
 			// Activate plugin
 			$this->log("Attempting to activate plugin: " . $this->config['slug']);
-			$activation_result = activate_plugin($this->config['slug']);
+			$plugin_file = $this->config['slug'];
+			
+			// Verify plugin file exists before activation
+			$plugin_path = WP_PLUGIN_DIR . '/' . $plugin_file;
+			$this->log("Checking plugin file exists at: " . $plugin_path);
+			if (!file_exists($plugin_path)) {
+				throw new Exception("Plugin file does not exist at expected path: {$plugin_path}");
+			}
+			
+			$activation_result = activate_plugin($plugin_file);
 			if (is_wp_error($activation_result)) {
 				throw new Exception("Plugin activation failed: " . $activation_result->get_error_message());
 			}

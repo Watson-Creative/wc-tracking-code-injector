@@ -74,7 +74,7 @@ class WatsonPixelTracking {
 	
 		$config = array(
 			'main_plugin_file' => __FILE__,
-			'slug' => plugin_basename(__FILE__),
+			'slug' => 'wc-tracking-code-injector/wc-tracking-code-injector.php',
 			'proper_folder_name' => 'wc-tracking-code-injector',
 			'api_url' => 'https://api.github.com/repos/Watson-Creative/wc-tracking-code-injector',
 			'raw_url' => 'https://raw.githubusercontent.com/Watson-Creative/wc-tracking-code-injector/main',
