@@ -705,6 +705,34 @@ class WP_GitHub_Updater {
 			$this->log("Source directory does not exist: " . $source, 'error');
 			return new WP_Error('missing_source', "Source directory does not exist");
 		}
+
+		// Check if this is a GitHub archive with an extra directory level
+		$github_archive_pattern = '/-main$/';
+		$source_parent = dirname($source);
+		$source_dirname = basename($source);
+
+		if (preg_match($github_archive_pattern, $source_dirname)) {
+			$this->log("Detected GitHub archive structure, adjusting paths", 'debug');
+			
+			// Get the proper plugin folder name from config
+			$proper_folder = $this->config['proper_folder_name'];
+			$new_source = trailingslashit($source_parent) . $proper_folder;
+			
+			// If the proper folder already exists, remove it
+			if (is_dir($new_source)) {
+				$this->log("Removing existing target directory: " . $new_source, 'debug');
+				$upgrader->clear_destination($new_source);
+			}
+			
+			// Move from GitHub's directory structure to proper plugin directory
+			$this->log("Moving from {$source} to {$new_source}", 'debug');
+			if (@rename($source, $new_source)) {
+				$this->log("Successfully restructured plugin directory", 'debug');
+				return $new_source;
+			} else {
+				$this->log("Failed to restructure plugin directory", 'error');
+			}
+		}
 		
 		return $source;
 	}
